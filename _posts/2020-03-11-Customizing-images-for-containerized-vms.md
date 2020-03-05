@@ -1,7 +1,7 @@
 ---
 layout: post
 author: Alberto Losada Grande
-description: A use case is exposed where containerized VMs running on top of Kubernetes ease the deployment of standardized VMs required by software developers. In this first part, we focus on creating standard images using different tools and then containerize them so that can be stored in a container registry.
+description: A use case is exposed where containerized VMs running on top of Kubernetes ease the deployment of standardized VMs required by software developers. In this first part, we focus on creating standard images using different tools and then containerize them so that them can be stored in a container registry.
 navbar_active: Blogs
 category: news
 tags:
@@ -13,6 +13,9 @@ tags:
     "containerDisk",
     "dockerfile",
     "registry",
+    "composer-cli",
+    "virt-customize",
+    "builder tool",
   ]
 comments: true
 title: Customizing images for containerized VMs
@@ -41,18 +44,18 @@ pub-year: 2020
 <!-- /TOC -->
 
 > info "Information"
-> The content of this article has been divided into two: this, which is the first part, explains how to create a golden image using different tools such as _Builder Tool_ and _virt-customize_. Once the custom-built image is ready, it is containerized so that it can uploaded and stored into a container registry. The second part deals with the different ways the developers can deploy, modify and connect to the `VirtualMachineInstance` running in the OKD Kubernetes cluster.
+> The content of this article has been divided into two: this one, which is the first part, explains how to create a golden image using different tools such as _Builder Tool_ and _virt-customize_. Once the custom-built image is ready, it is containerized so that it can be uploaded and stored into a container registry. The second part deals with the different ways the developers can deploy, modify and connect to the `VirtualMachineInstance` running in the OKD Kubernetes cluster.
 
 ## Introduction
 
-If you work for a software factory, it is probable that some kind of development environment standardization is in place. There are a lot of approaches which fit different use cases. In this blog post our example company has allowed developers to choose their preferred editing tools and debugging environment locally to their workstations. However, before committing their changes to the Git repository, they need to validate them in a specific tailored environment. This environment, due to legal restrictions, contains exact versions of the libraries, databases, web server or any other software previously agreed with customers.
+If you work for a software factory, it is probable that some kind of development environment standardization is in place. There are a lot of approaches which fit different use cases. In this blog post, our example company has allowed developers to choose their preferred editing tools and debugging environment locally to their workstations. However, before committing their changes to the Git repository, they need to validate them in a specific tailored environment. This environment, due to legal restrictions, contains exact versions of the libraries, databases, web server or any other software previously agreed with customers.
 
 > note "Note"
 > Aside from the pre-commit environments, the company already has an automated continuous integration workflow composed by several shared environments: _development, integration and production_.
 
 This blog post focuses on showing a use case where containerized VMs running on top of Kubernetes ease the deployment and creation of standardized VMs to our developers. These VMs are meant to be ephemeral. However, if necessary, additional non persistent disk or shared persistent storage can be attached so that important information can be kept safe.
 
-Along the process it is also detailed different approaches and tools to create custom VM images that will be stored in a corporate registry. Containerizing VMs means adapting them so that they can be stored in a container registry. Being able to store VMs as a container images takes advantage of the benefits of a container registry, such as:
+Along the process, different approaches and tools to create custom VM images that will be stored in a corporate registry are detailed. Containerizing VMs means adapting them so that they can be stored in a container registry. Being able to store VMs as a container images takes advantage of the benefits of a container registry, such as:
 
 - The registry becomes a **source of truth** for the VMs you want to run. Everybody can list all VMs available searching on a centralized point.
 - The container registry, depending on the storage size, contains historical information of all the VMs, which might have multiple different versions, identified by their tags. Any developer with the proper permissions is able to run any specific version of your standardized VM.
@@ -75,7 +78,7 @@ This goal is clearly divided into three main procedures:
 
 Running containerized VMs in KubeVirt uses the [containerDisk](https://kubevirt.io/user-guide/docs/latest/creating-virtual-machines/disks-and-volumes.html#containerdisk) feature which provides the ability to store and distributed VM disks in the container image registry. The disks are pulled from the container registry and reside on the local node hosting the VMs that consume the disks.
 
-Before running VMs in KubeVirt, first we need to have KubeVirt running in a Kubernetes cluster. The company already have a [OKD 4 Kubernetes cluster](https://www.okd.io/) installed which provides out of the box a container registry and some required security features such as _Role Based Access Controls (RBAC)_ and _Security Context Constraints (SCC)_ .
+Before running VMs in KubeVirt, first we need to have KubeVirt running in a Kubernetes cluster. The company already have a [OKD 4 Kubernetes cluster](https://www.okd.io/) installed which provides out of the box a container registry and some required security features such as _Role Based Access Controls (RBAC)_ and _Security Context Constraints (SCC)_.
 
 > info "Information"
 > [Here](https://blog.openshift.com/enterprise-kubernetes-with-openshift-part-one/) you can find useful information between the similarities and differences between OKD and Kubernetes.
@@ -86,7 +89,7 @@ On top of the OKD cluster, KubeVirt is required so that we can run our virtual m
 > KubeVirt version deployed is **0.26.1** which is the latest at the moment of writing.
 
 ```sh
-$  echo $KUBEVIRT_VERSION
+$ echo $KUBEVIRT_VERSION
 v0.26.1
 
 $ kubectl create -f https://github.com/kubevirt/kubevirt/releases/download/${KUBEVIRT_VERSION}/kubevirt-operator.yaml
@@ -95,14 +98,34 @@ $ kubectl create -f https://github.com/kubevirt/kubevirt/releases/download/${KUB
 
 <br>
 
-![cluster labelling](/assets/2020-03-11-Customizing-images-for-containerized-vms/kubevirt_okd.png)
+<div class="my-gallery" itemscope itemtype="http://schema.org/ImageGallery">
+  <figure
+    itemprop="associatedMedia"
+    itemscope
+    itemtype="http://schema.org/ImageObject"
+  >
+    <a
+      href="/assets/2020-03-11-Customizing-images-for-containerized-vms/kubevirt_okd.png"
+      itemprop="contentUrl"
+      data-size="1110x520"
+    >
+      <img
+        src="/assets/2020-03-11-Customizing-images-for-containerized-vms/kubevirt_okd.png"
+        itemprop="thumbnail"
+        width="100%"
+        alt="VM to VM"
+      />
+    </a>
+    <figcaption itemprop="caption description">cluster labelling</figcaption>
+  </figure>
+</div>
 
 > warning "Warning"
 > **oc** is the specific command-line tool for OKD, however it is based in kubectl plus some additional features detailed here. Probably, during the blog post you can find executions with oc or kubectl interchangeably.
 
-containerDisks are created from RAW or [QCOW2](https://www.linux-kvm.org/page/Qcow2) virtual machine images. Therefore, first we need to create the virtual machine image with all the agreed software and proper configuration files in place. The company currently uses CentOS 7 as their approved base operating system to run their applications. However, during the last few months it has been encouraging to move to the recently released version 8 of CentOS.
+`containerDisks` are created from RAW or [QCOW2](https://www.linux-kvm.org/page/Qcow2) virtual machine images. Therefore, first we need to create the virtual machine image with all the agreed software and proper configuration files in place. The company currently uses CentOS 7 as their approved base operating system to run their applications. However, during the last few months it has been encouraging to move to the recently released version 8 of CentOS.
 
-From a long time they had been using the prebuilt [CentOS cloud images](https://cloud.centos.org/centos/) with [virt-customize](http://libguestfs.org/virt-customize.1.html), which allowed them to modify the prebuilt cloud images. As a trade-off they had to trust on the cloud image provided by CentOS or verify if new packages were added on each release.
+From a long time they had been using the prebuilt [CentOS cloud images](https://cloud.centos.org/centos/) with [virt-customize](http://libguestfs.org/virt-customize.1.html), which allowed them to modify the prebuilt cloud images. As a trade-off they had to trust on the cloud image provided by CentOS or verify if new packages were added on each release.
 
 > info "Information"
 > **Virt-customize** can customize a virtual machine (disk image) by installing packages, editing configuration files, and so on. Virt-customize modifies the guest or disk image in place.
@@ -110,18 +133,38 @@ From a long time they had been using the prebuilt [CentOS cloud images](https://
 They are currently investigating a new tool called [Image Builder](https://docs.centos.org/en-US/centos/install-guide/Composer/) that can create deployment-ready customized system images from scratch. Furthermore, there is an integration with Cockpit where you can create custom CentOS images in various formats including QCOW2 for OpenStack, AMI (Amazon Machine Image), VHD (Azure Disk Image) etc. from a friendly user interface.
 
 > note "Note"
-> There are a lot of tools that can accomplish the objective of creating custom images. Heree we are focusing on two: virt-customize and Image Builder.
+> There are a lot of tools that can accomplish the objective of creating custom images. Here we are focusing on two: `virt-customize` and `Image Builder`.
 
 Along this blog post both tools are used together in the image building process, leveraging their strengths. In the following diagram is depicted the different agents that take part in the process of running our standardized VMs in Kubernetes. This workflow includes the creation and customization of the images, their containerization, storing them into the OKD container registry and finally the creation of the VMs in Kubernetes by the employees.
 
-![okd imagestream devstation](/assets/2020-03-11-Customizing-images-for-containerized-vms/diagram-customizing-images.png)
+<div class="my-gallery" itemscope itemtype="http://schema.org/ImageGallery">
+  <figure
+    itemprop="associatedMedia"
+    itemscope
+    itemtype="http://schema.org/ImageObject"
+  >
+    <a
+      href="/assets/2020-03-11-Customizing-images-for-containerized-vms/diagram-customizing-images.png"
+      itemprop="contentUrl"
+      data-size="1110x320"
+    >
+      <img
+        src="/assets/2020-03-11-Customizing-images-for-containerized-vms/diagram-customizing-images.png"
+        itemprop="thumbnail"
+        width="100%"
+        alt="VM to VM"
+      />
+    </a>
+    <figcaption itemprop="caption description">okd imagestream devstation</figcaption>
+  </figure>
+</div>
 
 ### Configuration of the Builder image server
 
 In order to prepare the building environment, it is recommended to install Image Builder in a dedicated machine as it has specific security requirements. Actually, the `lorax-composer` which is one of its components doesn’t work properly with SELinux running, as it installs an entire OS image in an alternate directory.
 
 > warning "Warning"
-> As shown in the [lorax-composer documention](https://weldr.io/Running-Composer-on-RHEL/) SELinux must be disabled. However, I have been able to create custom images successfully with SELinux enabled. During this blog post all image builds are created with SELinux enabled. However, in case you find any problems during your building, check the lorax-composer logs in journal in order to get more detailed information.
+> As shown in the [lorax-composer documention](https://weldr.io/Running-Composer-on-RHEL/) SELinux must be disabled. However, I have been able to create custom images successfully with SELinux enabled. During this blog post all image builds are created with SELinux enabled. However, in case you find any problems during your building, check the `lorax-composer` logs in journal in order to get more detailed information.
 
 Here it is a table where the software required to run the builds along with the versions have been used.
 
@@ -142,7 +185,7 @@ $ yum groupinstall "Virtualization Host" -y
 $ systemctl enable libvirtd --now
 ```
 
-Next, virt-customize is installed from the libguestfs-tools package along with the Image Builder. The latest is composed by lorax-composer, the cockpit composer plugin and the composer-cli, which will be used in case we want to interact directly with Composer.
+Next, `virt-customize` is installed from the `libguestfs-tools` package along with the Image Builder. The latest is composed by lorax-composer, the cockpit composer plugin and the composer-cli, which will be used in case we want to interact directly with Composer.
 
 ```sh
 $ dnf install -y libguestfs-tools lorax-composer composer-cli cockpit-composer
@@ -159,11 +202,51 @@ $ firewall-cmd --add-service=cockpit && firewall-cmd --add-service=cockpit --per
 
 Finally, verify you can connect to the cockpit user interface and log in with the builder image server local account.
 
-![cockpit login](/assets/2020-03-11-Customizing-images-for-containerized-vms/cockpit-gui.png)
+<div class="my-gallery" itemscope itemtype="http://schema.org/ImageGallery">
+  <figure
+    itemprop="associatedMedia"
+    itemscope
+    itemtype="http://schema.org/ImageObject"
+  >
+    <a
+      href="/assets/2020-03-11-Customizing-images-for-containerized-vms/cockpit-gui.png"
+      itemprop="contentUrl"
+      data-size="1110x484"
+    >
+      <img
+        src="/assets/2020-03-11-Customizing-images-for-containerized-vms/cockpit-gui.png"
+        itemprop="thumbnail"
+        width="100%"
+        alt="VM to VM"
+      />
+    </a>
+    <figcaption itemprop="caption description">cockpit login</figcaption>
+  </figure>
+</div>
 
 In the following image it is shown the Image Build plugin web page. Actually, what it is depicted are the different Image Build blueprints that are shipped by default. _The blueprint_ defines what should be included in your image. This includes packages, users, files, server settings ...
 
-![cockpit first page](/assets/2020-03-11-Customizing-images-for-containerized-vms/cockpit-first-page.png)
+<div class="my-gallery" itemscope itemtype="http://schema.org/ImageGallery">
+  <figure
+    itemprop="associatedMedia"
+    itemscope
+    itemtype="http://schema.org/ImageObject"
+  >
+    <a
+      href="/assets/2020-03-11-Customizing-images-for-containerized-vms/cockpit-first-page.png"
+      itemprop="contentUrl"
+      data-size="1110x333"
+    >
+      <img
+        src="/assets/2020-03-11-Customizing-images-for-containerized-vms/cockpit-first-page.png"
+        itemprop="thumbnail"
+        width="100%"
+        alt="VM to VM"
+      />
+    </a>
+    <figcaption itemprop="caption description">cockpit first page</figcaption>
+  </figure>
+</div>
 
 ## Building standard CentOS 8 image
 
@@ -173,9 +256,29 @@ It is time to create our standardized CentOS 8 image or also called golden CentO
 
 The easiest way to start is create a new blueprint from the cockpit user interface. This will create the skaffold file which will be able to modify depending on our needs. Here it is shown the process of creation a new blueprint from the cockpit user interface:
 
-![cockpit login](/assets/2020-03-11-Customizing-images-for-containerized-vms/create_blueprint.png)
+<div class="my-gallery" itemscope itemtype="http://schema.org/ImageGallery">
+  <figure
+    itemprop="associatedMedia"
+    itemscope
+    itemtype="http://schema.org/ImageObject"
+  >
+    <a
+      href="/assets/2020-03-11-Customizing-images-for-containerized-vms/create_blueprint.png"
+      itemprop="contentUrl"
+      data-size="1110x413"
+    >
+      <img
+        src="/assets/2020-03-11-Customizing-images-for-containerized-vms/create_blueprint.png"
+        itemprop="thumbnail"
+        width="100%"
+        alt="VM to VM"
+      />
+    </a>
+    <figcaption itemprop="caption description">create blueprint</figcaption>
+  </figure>
+</div>
 
-I would also suggest adding some users and all the packages you want to install from the user interface. In our case we are going to create the following users. In both cases the password is known by the respectives group of users and also belongs to the wheel group.
+I would also suggest adding some users and all the packages you want to install from the user interface. In our case we are going to create the following users. In both cases the password is known by the respective group of users and also belongs to the wheel group.
 
 | Users     | Note                                                                                            |
 | --------- | ----------------------------------------------------------------------------------------------- |
@@ -192,7 +295,27 @@ Next, specify the packages to include. Add the proper version of the package alr
 | mariadb-server | 10.3.17 |
 | openssh-server | latest  |
 
-![cockpit login](/assets/2020-03-11-Customizing-images-for-containerized-vms/packages_version.png)
+<div class="my-gallery" itemscope itemtype="http://schema.org/ImageGallery">
+  <figure
+    itemprop="associatedMedia"
+    itemscope
+    itemtype="http://schema.org/ImageObject"
+  >
+    <a
+      href="/assets/2020-03-11-Customizing-images-for-containerized-vms/packages_version.png"
+      itemprop="contentUrl"
+      data-size="1110x454"
+    >
+      <img
+        src="/assets/2020-03-11-Customizing-images-for-containerized-vms/packages_version.png"
+        itemprop="thumbnail"
+        width="100%"
+        alt="VM to VM"
+      />
+    </a>
+    <figcaption itemprop="caption description">packages versions</figcaption>
+  </figure>
+</div>
 
 At this point, you already have a blueprint template to start working. In addition to using the web console, you can also use the **Image Builder CLI** to create images. When using the CLI, you have access to a few more customization options, such as managing firewall rules or download files from Git. Since we already have installed the composer-cli package in the [Image Builder server](#configuration-of-the-builder-image-server), let’s use it to further customize our golden image.
 
@@ -221,9 +344,9 @@ Now, let’s edit the `devstation-centos8.toml` file which is in charge of build
 > warning "Warning"
 > It is important to add console as kernel option since we have realized that Builder Image tool disables it by default. Probably for other use cases it is fine to be disabled, however, in our case of containerized VMs it is almost mandatory to be enabled. It will allow the virtcl command from KubeVirt project to connect to the VM while it is booting in our OKD Kubernetes cluster.
 
-This is the final building configuration file, it can be dowloaded from [here](/assets/2020-03-11-Customizing-images-for-containerized-vms/devstation-centos8.toml)
+This is the final building configuration file, it can be downloaded from [here](/assets/2020-03-11-Customizing-images-for-containerized-vms/devstation-centos8.toml)
 
-```sh
+```toml
 name = "devstation-centos8"
 description = "A developer station"
 version = "0.0.1"
@@ -306,7 +429,7 @@ Compose ea8089f6-7e60-4282-a4e8-5c168246c0b6 added to the queue
 > It is possible to verify that the modified blueprint has been pushed successfully by executing the show command.
 >
 > ```sh
-> $ composer-cli blueprints show  devstation-centos8
+> $ composer-cli blueprints show devstation-centos8
 > ```
 
 The building process can take tens of minutes. It is possible to see the process by checking the lorax-composer logs in journal or request the status of the blueprint built from the composer-cli:
@@ -324,7 +447,7 @@ Mar 02 09:19:09 eko7.cloud.lab.eng.bos.redhat.com lorax-composer[26293]: 2020-03
 ...
 ```
 
-Once the building image is finished, it is time to download the qcow2 file. It can be downloaded from Cockpit or from the composer-cli:
+Once the building image is finished, it is time to download the `qcow2` file. It can be downloaded from Cockpit or from the composer-cli:
 
 ```sh
 $ composer-cli compose image ea8089f6-7e60-4282-a4e8-5c168246c0b6
@@ -414,7 +537,7 @@ Before continuing, it is suggested to verify the golden expanded image. Since th
 > info "Information"
 > There are a lot of tools that allow us to run a qcow2 image in libvirt. In this example I used `virt-install`, however other tool that makes easy deploy VM images and worth exploring is [kcli](https://github.com/karmab/kcli)
 
-First, install [virt-install](https://linux.die.net/man/1/virt-install), which is a command line tool for creating new KVM , Xen, or Linux container guests using the "libvirt" hypervisor management library, and run a new VM from the golden image:
+First, install [virt-install](https://linux.die.net/man/1/virt-install), which is a command line tool for creating new KVM, Xen, or Linux container guests using the "libvirt" hypervisor management library, and run a new VM from the golden image:
 
 ```sh
 $ yum install virt-install -y
@@ -497,7 +620,7 @@ Please contact us at sysadmin@corporate.com
 
 ### Image tailoring with virt-customize
 
-In the previous section we have verified that the golden image has been successfully built. However there are few things that need to be added so that the golden image can be successfully containerized and run on top of our OKD Kubernetes cluster.
+In the previous section we have verified that the golden image has been successfully built. However, there are few things that need to be added so that the golden image can be successfully containerized and run on top of our OKD Kubernetes cluster.
 
 First, a worthy package that is suggested to be included in the golden image is [cloud-init](https://cloud-init.io/). KubeVirt allows you to create VM objects along with [cloud-init](https://kubevirt.io/user-guide/docs/latest/creating-virtual-machines/startup-scripts.html#cloud-init) configurations. Cloud-init will let our developers further adapt the custom image to their application needs. On the other hand, it has been agreed with the Software Engineering team to add a graphical interface to the custom image since there are developers that are not familiar with the terminal.
 
@@ -529,7 +652,7 @@ At this point it has been built:
 
 ## Building standard CentOS 7 image from cloud images
 
-In the previous section it was shown how we can build and customize images from scratch using the Builder Image tool. However there are settings that could not be configured even with the composer-cli. Thus, virt-customize was used to fine tune the custom image, i.e, add cloud-init and a graphical user interface.
+In the previous section it was shown how we can build and customize images from scratch using the Builder Image tool. However, there are settings that could not be configured even with the composer-cli. Thus, virt-customize was used to fine tune the custom image, i.e, add cloud-init and a graphical user interface.
 
 Since the Builder Tool is an [experimental tool in CentOS 7.6](https://docs.centos.org/en-US/centos/install-guide/Composer/), the company continues creating their golden CentOS 7 images based on CentOS cloud images. Comparing with the CentOS 8 workflow, this image is the golden image even it is not built by the Systems Engineering department.
 
@@ -748,13 +871,33 @@ At this point, the images are stored in a private registry and ready to be consu
 > info "Information"
 > In case you do not have a corporate private registry available, you can upload images to any free public container registry. Then, consume the container images from the public container registry. Just in case you want to use them or take a look, it has been uploaded to my [public container image repository at quay.io](https://quay.io/repository/alosadag/devstation?tab=tags)
 
-![okd imagestream devstation](/assets/2020-03-11-Customizing-images-for-containerized-vms/okd_is_devstation.png)
+<div class="my-gallery" itemscope itemtype="http://schema.org/ImageGallery">
+  <figure
+    itemprop="associatedMedia"
+    itemscope
+    itemtype="http://schema.org/ImageObject"
+  >
+    <a
+      href="/assets/2020-03-11-Customizing-images-for-containerized-vms/okd_is_devstation.png"
+      itemprop="contentUrl"
+      data-size="1110x467"
+    >
+      <img
+        src="/assets/2020-03-11-Customizing-images-for-containerized-vms/okd_is_devstation.png"
+        itemprop="thumbnail"
+        width="100%"
+        alt="VM to VM"
+      />
+    </a>
+    <figcaption itemprop="caption description">okd imagestream devstation</figcaption>
+  </figure>
+</div>
 
-In the next article, we will show how our developers can consum the custom-built images to run into the OKD Kubernetes cluster.
+In the next article, we will show how our developers can consume the custom-built images to run into the OKD Kubernetes cluster.
 
 ## Summary
 
-In this blog post, it was detailed a real use of a company that uses KubeVirt to run standardized environments to run and test the code of their applications. In their use case VMs are spinned up in Kubernetes by the developers on demand. Once its purpose is done, VM can be deleted.
+In this blog post, it was detailed a real use of a company that uses KubeVirt to run standardized environments to run and test the code of their applications. In their use case VMs are spinned up in Kubernetes by the developers on demand. Once its purpose is accomplished, VMs can be deleted.
 
 The article explained how to create a golden image using different tools such as Builder Tool and virt-customize. Once the custom-built image is ready, then transform it into a container image so that it can uploaded and stored into a container registry.
 
