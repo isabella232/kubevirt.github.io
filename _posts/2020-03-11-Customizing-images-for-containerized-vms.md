@@ -9,7 +9,7 @@ tags:
     "kubevirt",
     "kubernetes",
     "virtual machine",
-    "VM",
+    "okd",
     "containerDisk",
     "dockerfile",
     "registry",
@@ -18,8 +18,8 @@ tags:
     "builder tool",
   ]
 comments: true
-title: Customizing images for containerized VMs
-pub-date: February 25
+title: Customizing images for containerized VMs (1/2)
+pub-date: March 11
 pub-year: 2020
 ---
 
@@ -27,17 +27,17 @@ pub-year: 2020
 
 <!-- TOC depthFrom:2 insertAnchor:false orderedList:false updateOnSave:true withLinks:true -->
 
-- [Introduction](#introduction)
+- [The vision](#the-vision)
 - [Preparation of the environment](#preparation-of-the-environment)
-  - [Configuration of the Builder image server](#configuration-of-the-builder-image-server)
+    - [Configuration of the Builder image server](#configuration-of-the-builder-image-server)
 - [Building standard CentOS 8 image](#building-standard-centos-8-image)
-  - [Image creation with Builder Tool](#image-creation-with-builder-tool)
-  - [Verify the custom-built image](#verify-the-custom-built-image)
-  - [Image tailoring with virt-customize](#image-tailoring-with-virt-customize)
+    - [Image creation with Builder Tool](#image-creation-with-builder-tool)
+    - [Verify the custom-built image](#verify-the-custom-built-image)
+    - [Image tailoring with virt-customize](#image-tailoring-with-virt-customize)
 - [Building standard CentOS 7 image from cloud images](#building-standard-centos-7-image-from-cloud-images)
-  - [Image creation with virt-customize](#image-creation-with-virt-customize)
+    - [Image creation with virt-customize](#image-creation-with-virt-customize)
 - [Image containerization procedure](#image-containerization-procedure)
-  - [Store the image in the container registry](#store-the-image-in-the-container-registry)
+    - [Store the image in the container registry](#store-the-image-in-the-container-registry)
 - [Summary](#summary)
 - [References](#references)
 
@@ -46,7 +46,7 @@ pub-year: 2020
 > info "Information"
 > The content of this article has been divided into two: this one, which is the first part, explains how to create a golden image using different tools such as _Builder Tool_ and _virt-customize_. Once the custom-built image is ready, it is containerized so that it can be uploaded and stored into a container registry. The second part deals with the different ways the developers can deploy, modify and connect to the `VirtualMachineInstance` running in the OKD Kubernetes cluster.
 
-## Introduction
+## The vision
 
 If you work for a software factory, it is probable that some kind of development environment standardization is in place. There are a lot of approaches which fit different use cases. In this blog post, our example company has allowed developers to choose their preferred editing tools and debugging environment locally to their workstations. However, before committing their changes to the Git repository, they need to validate them in a specific tailored environment. This environment, due to legal restrictions, contains exact versions of the libraries, databases, web server or any other software previously agreed with customers.
 
@@ -116,7 +116,7 @@ $ kubectl create -f https://github.com/kubevirt/kubevirt/releases/download/${KUB
         alt="VM to VM"
       />
     </a>
-    <figcaption itemprop="caption description">cluster labelling</figcaption>
+    <figcaption itemprop="caption description"></figcaption>
   </figure>
 </div>
 
@@ -185,7 +185,7 @@ $ yum groupinstall "Virtualization Host" -y
 $ systemctl enable libvirtd --now
 ```
 
-Next, `virt-customize` is installed from the `libguestfs-tools` package along with the Image Builder. The latest is composed by lorax-composer, the cockpit composer plugin and the composer-cli, which will be used in case we want to interact directly with Composer.
+Next, `virt-customize` is installed from the `libguestfs-tools` package along with the Image Builder. The latest is composed by lorax-composer, the Cockpit composer plugin and the composer-cli, which will be used in case we want to interact directly with Composer.
 
 ```sh
 $ dnf install -y libguestfs-tools lorax-composer composer-cli cockpit-composer
@@ -194,13 +194,13 @@ $ systemctl enable lorax-composer --now
 $ systemctl start cockpit
 ```
 
-Local firewall is configured so that we can connect to the cockpit user interface via HTTP from our workstation.
+Then ,the local firewall is configured so that we can connect to the Cockpit user interface via HTTP from our workstation.
 
 ```sh
 $ firewall-cmd --add-service=cockpit && firewall-cmd --add-service=cockpit --permanent
 ```
 
-Finally, verify you can connect to the cockpit user interface and log in with the builder image server local account.
+Finally, verify you can connect to the Cockpit user interface and log in with the builder image server local account.
 
 <div class="my-gallery" itemscope itemtype="http://schema.org/ImageGallery">
   <figure
@@ -220,7 +220,7 @@ Finally, verify you can connect to the cockpit user interface and log in with th
         alt="VM to VM"
       />
     </a>
-    <figcaption itemprop="caption description">cockpit login</figcaption>
+    <figcaption itemprop="caption description"></figcaption>
   </figure>
 </div>
 
@@ -244,7 +244,7 @@ In the following image it is shown the Image Build plugin web page. Actually, wh
         alt="VM to VM"
       />
     </a>
-    <figcaption itemprop="caption description">cockpit first page</figcaption>
+    <figcaption itemprop="caption description"></figcaption>
   </figure>
 </div>
 
@@ -254,7 +254,7 @@ It is time to create our standardized CentOS 8 image or also called golden CentO
 
 ### Image creation with Builder Tool
 
-The easiest way to start is create a new blueprint from the cockpit user interface. This will create the skaffold file which will be able to modify depending on our needs. Here it is shown the process of creation a new blueprint from the cockpit user interface:
+The easiest way to start is create a new blueprint from the Cockpit user interface. This will create the skaffold file which will be able to modify depending on our needs. Here it is shown the process of creation a new blueprint from the Cockpit user interface:
 
 <div class="my-gallery" itemscope itemtype="http://schema.org/ImageGallery">
   <figure
@@ -274,7 +274,7 @@ The easiest way to start is create a new blueprint from the cockpit user interfa
         alt="VM to VM"
       />
     </a>
-    <figcaption itemprop="caption description">create blueprint</figcaption>
+    <figcaption itemprop="caption description"></figcaption>
   </figure>
 </div>
 
@@ -313,7 +313,7 @@ Next, specify the packages to include. Add the proper version of the package alr
         alt="VM to VM"
       />
     </a>
-    <figcaption itemprop="caption description">packages versions</figcaption>
+    <figcaption itemprop="caption description"></figcaption>
   </figure>
 </div>
 
@@ -889,7 +889,7 @@ At this point, the images are stored in a private registry and ready to be consu
         alt="VM to VM"
       />
     </a>
-    <figcaption itemprop="caption description">okd imagestream devstation</figcaption>
+    <figcaption itemprop="caption description"></figcaption>
   </figure>
 </div>
 
@@ -897,12 +897,12 @@ In the next article, we will show how our developers can consume the custom-buil
 
 ## Summary
 
-In this blog post, it was detailed a real use of a company that uses KubeVirt to run standardized environments to run and test the code of their applications. In their use case VMs are spinned up in Kubernetes by the developers on demand. Once its purpose is accomplished, VMs can be deleted.
+In this blog post, it was detailed a real use of a company that uses KubeVirt to run standardized environments to run and test the code of their applications. In their use case, VMs are spinned up on demand in the OKD Kubernetes cluster by the developers. This makes them completely autonomous creating and deleting their environments once the tasks is accomplished.
 
-The article explained how to create a golden image using different tools such as Builder Tool and virt-customize. Once the custom-built image is ready, then transform it into a container image so that it can uploaded and stored into a container registry.
+The article explained how to create a golden image using different tools such as Builder Tool and virt-customize. Once the custom-built image was ready, then it is transformed into a container image so that it can be uploaded and stored into a container registry.
 
 > info "Information"
-> In the next blog post of these series we will deploy the custom-built containerized VM from our corporate registry into our Kubernetes cluster. It will be shown how our developers can fine tune even more the image, how they can request extra storage and how they can connect to the `VirtualMachineInstance`. Stay tuned!
+> In the next blog post of these series we will deploy the custom-built containerized VM from our corporate registry into our Kubernetes cluster. It will be shown how our developers can fine tune even more the image deployment, how they can request extra storage and how they can connect to the `VirtualMachineInstance`. Stay tuned!
 
 ## References
 
