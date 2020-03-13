@@ -29,15 +29,15 @@ pub-year: 2020
 
 - [The vision](#the-vision)
 - [Preparation of the environment](#preparation-of-the-environment)
-  - [Configuration of the Builder image server](#configuration-of-the-builder-image-server)
+    - [Configuration of the Builder image server](#configuration-of-the-builder-image-server)
 - [Building standard CentOS 8 image](#building-standard-centos-8-image)
-  - [Image creation with Builder Tool](#image-creation-with-builder-tool)
-  - [Verify the custom-built image](#verify-the-custom-built-image)
-  - [Image tailoring with virt-customize](#image-tailoring-with-virt-customize)
-- [Building standard CentOS 7 image from cloud images](#building-standard-centos-7-image-from-cloud-images)
-  - [Image creation with virt-customize](#image-creation-with-virt-customize)
+    - [Image creation with Builder Tool](#image-creation-with-builder-tool)
+    - [Verify the custom-built image](#verify-the-custom-built-image)
+    - [Image tailoring with virt-customize](#image-tailoring-with-virt-customize)
+- [Building a standard CentOS 7 image from cloud images](#building-a-standard-centos-7-image-from-cloud-images)
+    - [Image creation with virt-customize](#image-creation-with-virt-customize)
 - [Image containerization procedure](#image-containerization-procedure)
-  - [Store the image in the container registry](#store-the-image-in-the-container-registry)
+    - [Store the image in the container registry](#store-the-image-in-the-container-registry)
 - [Summary](#summary)
 - [References](#references)
 
@@ -81,7 +81,7 @@ Running containerized VMs in KubeVirt uses the [containerDisk](https://kubevirt.
 Prior to run VMs in KubeVirt, it first must be running in the Kubernetes cluster. The company already have an [OKD 4 Kubernetes cluster](https://www.okd.io/) installed which provides out of the box a container registry and some required security features such as _Role Based Access Controls (RBAC)_ and _Security Context Constraints (SCC)_.
 
 > info "Information"
-> [Here](https://blog.openshift.com/enterprise-kubernetes-with-openshift-part-one/) you can find useful information between the similarities and differences between OKD and Kubernetes.
+> In the [OpenShift blog](https://blog.openshift.com/) there is a post called [Enterprise Kubernetes with OpenShift](https://blog.openshift.com/enterprise-kubernetes-with-openshift-part-one/) where you can find valuable information between the similarities and differences between OKD and Kubernetes.
 
 On top of the OKD cluster, KubeVirt is required so that we can run our virtual machines. The installation process is pretty well detailed in the [KubeVirt's documentation](https://kubevirt.io/pages/cloud.html). Below it is shown how KubeVirt components can be seen from the OKD web console.
 
@@ -161,22 +161,23 @@ Along this blog post, both tools are used together in the image building process
 
 ### Configuration of the Builder image server
 
-In order to prepare the building environment, it is recommended to install Image Builder in a dedicated machine as it has specific security requirements. Actually, the `lorax-composer` which is one of its components doesn’t work properly with SELinux running, as it installs an entire OS image in an alternate directory.
+In order to prepare the building environment, it is recommended to install Image Builder in a dedicated server as it has specific security requirements. Actually, the `lorax-composer` which is one of its components doesn’t work properly with SELinux running, as it installs an entire OS image in an alternate directory.
 
 > warning "Warning"
-> As shown in the [lorax-composer documentation](https://weldr.io/Running-Composer-on-RHEL/) SELinux must be disabled. However, I have been able to create custom images successfully with SELinux enabled. During this blog post all image builds are created with SELinux enabled. However, in case you find any problems during your building, check the `lorax-composer` logs in journal in order to get more detailed information.
+> As shown in the [lorax-composer documentation](https://weldr.io/Running-Composer-on-RHEL/) SELinux must be disabled. However, I have been able to create custom images successfully with SELinux enabled. During this blog post all image builds are created with SELinux enabled. In case you find any problems during your building, check the `lorax-composer` logs in journal in order to get more detailed information.
 
 Here it is a table where the software required to run the builds along with the versions have been used.
 
 > note "Note"
 > Operating System is **CentOS 8** since CentOS 7 Image Builder is still an [experimental feature](https://docs.centos.org/en-US/centos/install-guide/Composer/)
 
-| Configuration      | Value                                                                        |
-| ------------------ | ---------------------------------------------------------------------------- |
-| `Operating System` | `CentOS Linux release 8.1.1911 (Core)`                                       |
-| `Libvirt`          | `libvirtd (libvirt) 4.5.0`                                                   |
-| `virt-customize`   | `virt-customize 1.38.4rhel=8,release=14.module_el8.1.0+248+298dec18,libvirt` |
-| `Image Builder`    | `lorax-composer, composer-cli, (composer-cli-28.14.30-1), cockpit-composer`  |
+
+| Component     | Version                                                                                            |
+| --------- | ----------------------------------------------------------------------------------------------- |
+| Operating System  | CentOS Linux release 8.1.1911 (Core) |
+| Libvirt | libvirtd (libvirt) 4.5.0                               |
+| virt-customize | virt-customize 1.38.4rhel=8,release=14.module_el8.1.0+248+298dec18,libvirt |
+| Image Builder | lorax-composer (28.14.30-1), composer-cli (composer-cli-28.14.30-1), cockpit-composer (cockpit-composer-5-1.el8.noarch) |
 
 Once the builder image server is provisioned with latest CentOS 8, the `Virtualization Host` group package is installed. It will be required to test our customized images locally before containerizing and pushing them to the OKD registry.
 
@@ -185,7 +186,9 @@ $ yum groupinstall "Virtualization Host" -y
 $ systemctl enable libvirtd --now
 ```
 
-Next, `virt-customize` is installed from the `libguestfs-tools` package along with the Image Builder. The latest is composed by lorax-composer, the Cockpit composer plugin and the composer-cli, which will be used in case we want to interact directly with Composer.
+<br>
+
+Next, `virt-customize` is installed from the `libguestfs-tools` package along with the Image Builder. The latest is composed by lorax-composer, the Cockpit composer plugin and the composer-cli, which will be used to interact directly with Composer using command-line.
 
 ```sh
 $ dnf install -y libguestfs-tools lorax-composer composer-cli cockpit-composer
@@ -194,13 +197,16 @@ $ systemctl enable lorax-composer --now
 $ systemctl start cockpit
 ```
 
-Then, the local firewall is configured so that we can connect to the Cockpit user interface via HTTP from our workstation.
+<br>
+
+Then, the local firewall is configured so that we can connect to the Cockpit web user interface from our workstation.
 
 ```sh
 $ firewall-cmd --add-service=cockpit && firewall-cmd --add-service=cockpit --permanent
 ```
+<br>
 
-Finally, verify you can connect to the Cockpit user interface and log in with the builder image server local account.
+Finally, connect to the Cockpit user interface by typing the IP or name of the Builder image server and port _tcp/9000_ (Cockpit's default) in your favourite web browser. Then, log in with a local administrator account.
 
 <div class="my-gallery" itemscope itemtype="http://schema.org/ImageGallery">
   <figure
@@ -248,13 +254,21 @@ The following image shows the Image Build plugin web page. Actually, what it is 
   </figure>
 </div>
 
+> error "Error"
+> If Cockpit's web UI is not working, take a look at the output of the lorax service with the command: 
+> ```sh
+> $ journalctl -fu lorax-composer
+> ```
+
+
+
 ## Building standard CentOS 8 image
 
 It is time to create our standardized CentOS 8 image or also called golden CentOS 8 image. This image will be built from the ground up using the Image Builder tool.
 
 ### Image creation with Builder Tool
 
-The easiest way to start is creating a new blueprint from the Cockpit user interface. This will produce a scaffold file where all the required modifications can be made. Here it is shown the process of creation a new blueprint from Cockpit:
+The easiest way to start is creating a new blueprint (devstation-centos8) from the Cockpit user interface. This will produce a scaffold file where all the required modifications can be made. Here it is shown the process of creation a new blueprint from Cockpit:
 
 <div class="my-gallery" itemscope itemtype="http://schema.org/ImageGallery">
   <figure
@@ -265,7 +279,7 @@ The easiest way to start is creating a new blueprint from the Cockpit user inter
     <a
       href="/assets/2020-03-11-Customizing-images-for-containerized-vms/create_blueprint.png"
       itemprop="contentUrl"
-      data-size="1110x413"
+      data-size="1110x449"
     >
       <img
         src="/assets/2020-03-11-Customizing-images-for-containerized-vms/create_blueprint.png"
@@ -278,14 +292,38 @@ The easiest way to start is creating a new blueprint from the Cockpit user inter
   </figure>
 </div>
 
-I would also suggest adding some users and all the packages you want to install from the user interface. In our case, we are going to create the following users. In both cases, the password is known by the respective group of users and also belongs to the wheel group.
+I would also suggest adding some users and all the packages you want to install from the user interface. In our case, we are going to create the following users by clicking on the details tab of the new blueprint. In both cases, the password is known by the respective group of users and also belongs to the wheel group.
 
 | Users     | Note                                                                                            |
 | --------- | ----------------------------------------------------------------------------------------------- |
 | sysadmin  | Privileged user owned by the Systems Engineering team to troubleshoot and have access to the VM |
 | developer | These are the credentials used by the developers to access the VM                               |
 
-Next, specify the packages to include. Add the proper version of the package already agreed with the customer.
+
+<div class="my-gallery" itemscope itemtype="http://schema.org/ImageGallery">
+  <figure
+    itemprop="associatedMedia"
+    itemscope
+    itemtype="http://schema.org/ImageObject"
+  >
+    <a
+      href="/assets/2020-03-11-Customizing-images-for-containerized-vms/users.png"
+      itemprop="contentUrl"
+      data-size="1110x380"
+    >
+      <img
+        src="/assets/2020-03-11-Customizing-images-for-containerized-vms/users.png"
+        itemprop="thumbnail"
+        width="100%"
+        alt="VM to VM"
+      />
+    </a>
+    <figcaption itemprop="caption description"></figcaption>
+  </figure>
+</div>
+
+
+Next, select the packages to include. Add the proper version of the package already agreed with the customer.
 
 | Package        | Version |
 | -------------- | ------- |
@@ -333,7 +371,10 @@ $ ls
 devstation-centos8.toml
 ```
 
-Now, let’s edit the `devstation-centos8.toml` file which is in charge of building our custom image:
+> info "Information"
+> All composer-cli options are documented in the [official webpage](https://weldr.io/lorax/composer-cli.html). Take a look if you need further detail.
+
+Now, let’s edit the `devstation-centos8.toml` file which is in charge of building our custom image. 
 
 - The timezone has been added to match Europe/Madrid with proper NTP servers.
 - The kernel has been modified to allow connection via console.
@@ -447,7 +488,7 @@ Mar 02 09:19:09 eko7.cloud.lab.eng.bos.redhat.com lorax-composer[26293]: 2020-03
 ...
 ```
 
-Once the building image is finished, it is time to download the `qcow2` file. It can be downloaded from Cockpit or from the composer-cli:
+Once the building process is finished, it is time to download the `QCOW2` file. It can be downloaded from Cockpit UI or from the composer-cli:
 
 ```sh
 $ composer-cli compose image ea8089f6-7e60-4282-a4e8-5c168246c0b6
@@ -458,7 +499,7 @@ $ ls -lhrt
 -rw-r--r--. 1 root root 1.9G Mar  2 09:31 ea8089f6-7e60-4282-a4e8-5c168246c0b6-disk.qcow2
 ```
 
-Afterwards the image is renamed to something more meaningful and the information given by qemu reviewed as exhibited below:
+Afterwards, the image is renamed to something more meaningful and the information given by qemu reviewed as exhibited below:
 
 ```sh
 $ mv ea8089f6-7e60-4282-a4e8-5c168246c0b6-disk.qcow2 golden-devstation-centos8-disk.qcow2
@@ -479,17 +520,31 @@ Format specific information:
 > warning "Warning"
 > Virtual size of the image is 4.4G, since we agreed 10G the disk must be resized and root filesystem expanded before being containerized. Currently, there is no way to specify disk capacity in containerDisk as it can be done with [emptyDisks](https://github.com/kubevirt/kubevirt/blob/master/docs/container-empty-disks.md#implementation). The size of the root filesystem and disk when running in KubeVirt is driven by the image.
 
+> warning "Warning"
+> It is recommended to save the QCOW2 images under /var/lib/libvirt/images/ so that qemu user have permissions to expand or resize them.
+
 ```sh
 $ qemu-img resize golden-devstation-centos8-disk.qcow2 10G
 Image resized.
 ```
 
-The expansion is executed on the root partition, which in case of our golden image is **/dev/vda2** partition. It must be checked previously. Note that a copy of the golden image has been created and that's the one expanded.
+The expansion is executed on the root partition, which in case of our golden image is **/dev/sda2** partition. It must be checked previously, for instance using the _virt-filesystems_ utility:
+
+```sh
+$ virt-filesystems --partitions --long -a golden-devstation-centos8-disk.qcow2
+Name       Type       MBR  Size        Parent
+/dev/sda1  partition  83   1073741824  /dev/sda
+/dev/sda2  partition  83   9661382656  /dev/sda
+```
+
+<br>
+
+Note that a **copy of the golden image** is created and that's the one expanded.
 
 ```sh
 $ cp golden-devstation-centos8-disk.qcow2 golden-devstation-centos8-disk-10G.qcow2
-$ virt-resize --expand /dev/vda2 golden-devstation-centos8-disk.qcow2 golden-devstation-centos8-disk-10G.qcow2
-[   0.0] Examining golden-devstation-centos8-disk.qcow2
+$ virt-resize --expand /dev/sda2  golden-devstation-centos8-disk.qcow2 golden-devstation-centos8-disk-10G.qcow2
+[   0.0] Examining golden-devstation-centos8-disk-10G.qcow2
 **********
 
 Summary of changes:
@@ -511,7 +566,7 @@ Resize operation completed with no errors.  Before deleting the old disk,
 carefully check that the resized disk boots and works correctly.
 ```
 
-Finally, verify that the image meets the expected values:
+Finally, it is verified that the image meets the expected size (see virtual size):
 
 ```sh
 $ qemu-img info golden-devstation-centos8-disk-10G.qcow2
@@ -528,7 +583,7 @@ Format specific information:
 ```
 
 > note "Note"
-> If you want to allow the developer choosing between multiple flavours, e.g. different root filesystem sizes, you can end up with multiple containerized VM images. If you just need an additional block device, `emptyDisk` is the proper way to go.
+> In case the developers are allowed to select between multiple flavours, e.g. different root filesystem sizes, you will end up with multiple containerized VM images. In the event that an additional block device is needed, `emptyDisk` is the proper way to go.
 
 ### Verify the custom-built image
 
@@ -620,7 +675,7 @@ Please contact us at sysadmin@corporate.com
 
 ### Image tailoring with virt-customize
 
-In the previous section, we have verified that the golden image has been successfully built. However, there are few things that need to be added so that the golden image can be successfully containerized and run on top of our OKD Kubernetes cluster.
+In the previous section, we verified that the golden image was successfully built. However, there are still a few things that need to be added so that the golden image can be successfully containerized and run on top of our OKD Kubernetes cluster.
 
 First, a worthy package that is suggested to be included in the golden image is [cloud-init](https://cloud-init.io/). KubeVirt allows you to create VM objects along with [cloud-init](https://kubevirt.io/user-guide/docs/latest/creating-virtual-machines/startup-scripts.html#cloud-init) configurations. Cloud-init will let our developers further adapt the custom image to their application needs. On the other hand, it has been agreed with the Software Engineering team to add a graphical interface to the custom image since there are developers that are not familiar with the terminal.
 
@@ -652,20 +707,21 @@ At this point it has been built:
 
 ## Building a standard CentOS 7 image from cloud images
 
-In the previous section, it was shown how we can build and customize images from scratch using the Builder Image tool. However, there are settings that could not be configured even with the composer-cli. Thus, virt-customize was used to fine-tune the custom image, i.e, add cloud-init and a graphical user interface.
+In the previous section, it was shown how we can build and customize images from scratch using the Builder Image tool. However, there are settings that could not be configured even with the composer-cli. Thus, _virt-customize_ is used to fine-tune the custom image, i.e, add cloud-init and a graphical user interface.
 
-Since the Builder Tool is an [experimental tool in CentOS 7.6](https://docs.centos.org/en-US/centos/install-guide/Composer/), the company continues creating their golden CentOS 7 images based on CentOS cloud images. Comparing with the CentOS 8 workflow, this image is the golden image even it is not built by the Systems Engineering department.
+Since the Builder Tool is an [experimental tool in CentOS 7.6](https://docs.centos.org/en-US/centos/install-guide/Composer/), the company continues creating their golden CentOS 7 images based on CentOS cloud images. Comparing with the CentOS 8 workflow, the cloud image corresponds to the golden image even it is not built by the Systems Engineering department.
 
 > warning "Warning"
 > Note that with CentOS 7 images, the company is trusting a cloud image provided by a third party instead of creating one from scratch.
 
 ### Image creation with virt-customize
 
-The process to create the golden CentOS 7 image is quite similar to the CentOS 8 one. However, in this case, the customize procedure is entirely done with virt-customize. The first step is to download the cloud image.
+The process to create the golden CentOS 7 image is quite similar to the CentOS 8 one. However, in this case, the customize procedure is entirely done with _virt-customize_. The first step is to download the cloud image.
 
 ```sh
-$ curl -o /var/lib/libvirt/images/CentOS-7-x86_64-GenericCloud.qcow2c https://cloud.centos.org/centos/7/images/CentOS-7-x86_64-GenericCloud.qcow2c
+$ curl -o /var/lib/libvirt/images/CentOS-7-x86_64-GenericCloud.qcow2 https://cloud.centos.org/centos/7/images/CentOS-7-x86_64-GenericCloud.qcow2
 ```
+<br>
 
 Then, it is required to resize and expand the image to meet the agreed size of 10GB. The details are the same explained in the [previous section](#image-creation-with-builder-tool)
 
@@ -679,10 +735,16 @@ cluster_size: 65536
 Format specific information:
     compat: 0.10
     refcount bits: 16
+
+$ qemu-img resize golden-devstation-centos7-disk.qcow2 10G
+Image resized.
+
+$ cp golden-devstation-centos7-disk.qcow2 golden-devstation-centos7-disk-10G.qcow2
+$ virt-resize --expand /dev/sda1  golden-devstation-centos7-disk.qcow2 golden-devstation-centos7-disk-10G.qcow2
 ```
 
 > warning "Warning"
-> In this case, unlike CentOS 8 image, the partition where the root filesystem resides is **/dev/vda1**. That’s the partition that needs to be expanded.
+> In this case, unlike CentOS 8 image, the partition where the root filesystem resides is **/dev/sda1**. That’s the partition that needs to be expanded.
 
 Below it is the `virt-customize` command that modifies the CentOS 7 _expanded_ cloud image by:
 
@@ -690,11 +752,20 @@ Below it is the `virt-customize` command that modifies the CentOS 7 _expanded_ c
 - Changing the root password
 - Setting devstation as hostname to the customized image
 - Configuring the time zone
-- Enabling and starting the installed services
-- Including files from the manual.
+- Enabling the installed services
+- Including files from the manual. 
+
+> note "Note"
+> Manual files must be pulled first from [alosadagrande/lorax](https://github.com/alosadagrande/lorax) GitHub repository.
 
 ```sh
-$ virt-customize --format qcow2 -a /var/lib/libvirt/images/golden-devstation-centos7-disk-10G.qcow2 --install cloud-init,mod_ssl,httpd,mariadb-server,php,openssh-server --memsize 4096  --hostname devstation  --selinux-relabel --timezone Europe/Madrid --root-password password:toor --password centos:password:developer123 --run-command ‘systemctl enable httpd --now’ --run-command ‘systemctl enable mariadb --now’ --mkdir /var/www/html/manual --upload /root/devstation-code/lorax/index.html:/var/www/html/manual/index.html
+$ virt-customize --format qcow2 -a /var/lib/libvirt/images/golden-devstation-centos7-disk-10G.qcow2 \
+                                --install cloud-init,mod_ssl,httpd,mariadb-server,php,openssh-server \ 
+                                --memsize 4096  --hostname devstation  --selinux-relabel --timezone Europe/Madrid \ 
+                                --root-password password:toor --password centos:password:developer123 \ 
+                                --run-command 'systemctl enable httpd' --run-command 'systemctl enable mariadb' \ 
+                                --mkdir /var/www/html/manual --upload ~/lorax/index.html:/var/www/html/manual/index.html
+                                
 [   0.0] Examining the guest ...
 [   4.7] Setting a random seed
 [   4.7] Installing packages: mod_ssl httpd mariadb-server php openssh-server
@@ -708,11 +779,13 @@ $ virt-customize --format qcow2 -a /var/lib/libvirt/images/golden-devstation-cen
 ```
 
 > info "Information"
-> Instead of executing all parameters in the command-line it is possible to create a file that is used as an input file for virt-customize. See option [commands-from-file](http://libguestfs.org/virt-customize.1.html)
+> Instead of executing all parameters in the command-line it is possible to create a file that is used as an input file for _virt-customize_. See option [commands-from-file](http://libguestfs.org/virt-customize.1.html)
 
-Finally, include the GNOME GUI to the expanded CentOS 7 image.
+Eventually, the GNOME binaries need to be included in the CentOS 7 image with graphical user interface. As seen below, the already _expanded_ image is copied to a new image called _golden-devstation-centos7-disk-10G-gui.qcow2_ and installed the proper group package (GNOME Desktop).
 
 ```sh
+$ cp golden-devstation-centos7-disk-10G.qcow2 golden-devstation-centos7-disk-10G-gui.qcow2
+
 $ virt-customize --format qcow2 -a /var/lib/libvirt/images/golden-devstation-centos7-disk-10G-gui.qcow2 --install cloud-init --memsize 4096 --run-command "yum groupinstall 'GNOME Desktop' -y" --run-command "systemctl set-default graphical.target" --selinux-relabel
 [   0.0] Examining the guest ...
 [   4.7] Setting a random seed
@@ -843,7 +916,7 @@ Storing signatures
 Verify that the images are stored correctly in the OKD container registry by checking the [imageStream](https://docs.openshift.com/container-platform/4.3/openshift_images/image-streams-manage.html#working-with-imagestreams). As shown below, both images were uploaded successfully since the `devstation` imagestream contains two images with v8-gui and v8-terminal tags respectively.
 
 ```sh
-oc describe imagestream devstation -n openshift
+$ oc describe imagestream devstation -n openshift
 Name:			devstation
 Namespace:		openshift
 Created:		23 hours ago
