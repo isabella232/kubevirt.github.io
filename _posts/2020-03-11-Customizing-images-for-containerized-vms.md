@@ -206,7 +206,7 @@ $ firewall-cmd --add-service=cockpit && firewall-cmd --add-service=cockpit --per
 ```
 <br>
 
-Finally, connect to the Cockpit user interface by typing the IP or name of the Builder image server and port _tcp/9000_ (Cockpit's default) in your favourite web browser. Then, log in with a local administrator account.
+Finally, connect to the Cockpit user interface by typing the IP or name of the Builder image server and port _TCP/9000_ (Cockpit's default) in your favourite web browser. Then, log in with a local administrator account.
 
 <div class="my-gallery" itemscope itemtype="http://schema.org/ImageGallery">
   <figure
